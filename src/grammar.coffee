@@ -423,6 +423,7 @@ grammar =
   For: [
     o 'Statement  ForBody',                     -> new For $1, $2
     o 'Expression ForBody',                     -> new For $1, $2
+    o '( Expression , Expression ) ForBody',    -> new For $4, $6, $2
     o 'ForBody    Block',                       -> new For $2, $1
   ]
 

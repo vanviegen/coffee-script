@@ -428,3 +428,30 @@ test "#1326: `by` value is uncached", ->
   arrayEq a, rangeCompileSimple
   #exercises Range.compile
   eq "#{i for i in [0..2] by h()}", '0,1,2'
+
+
+test "object from array comprehension", ->
+  obj = ('x',5) for [1..2]
+  ok obj.x == 5
+
+  obj = ('a'+a,a*2) for a in [3,5,2]
+  ok obj.a3 == 6
+  ok obj.a5 == 10
+  ok obj.a2 == 4
+  
+  obj = ('a'+a,i) for a,i in [3,5,2]
+  ok obj.a3 == 0
+  ok obj.a5 == 1
+  ok obj.a2 == 2
+
+test "object from object comprehension", ->
+  obj = ('x'+k,k+k) for k of {a:1, b:2, c:3}
+  ok obj.xa == 'aa'
+  ok obj.xb == 'bb'
+  ok obj.xc == 'cc'
+  
+  obj = ('x'+v,k) for k,v of {a:1, b:2, c:3}
+  ok obj.x1 == 'a'
+  ok obj.x2 == 'b'
+  ok obj.x3 == 'c'
+

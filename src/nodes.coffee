@@ -1475,9 +1475,12 @@ exports.Parens = class Parens extends Base
 # the current index of the loop as a second parameter. Unlike Ruby blocks,
 # you can map and filter in a single pass.
 exports.For = class For extends Base
-  constructor: (body, source) ->
+  constructor: (body, source, key) ->
     {@source, @guard, @step, @name, @index} = source
     @body    = Block.wrap [body]
+    if key
+        @key      = Block.wrap [key]
+        @children = @children.concat ['key']
     @own     = !!source.own
     @object  = !!source.object
     [@name, @index] = [@index, @name] if @object
@@ -1536,9 +1539,12 @@ exports.For = class For extends Base
         stepPart   = if @step then "#{ivar} += #{stepvar}" else "#{ivar}++"
         forPart    = "#{forVarPart}; #{ivar} < #{lvar}; #{stepPart}"
     if @returns
-      resultPart   = "#{@tab}#{rvar} = [];\n"
+      resultPart   = "#{@tab}#{rvar} = #{if @key then '{}' else '[]'};\n"
       returnResult = "\n#{@tab}return #{rvar};"
-      body         = Push.wrap rvar, body
+      if @key
+        body       = ObjectAssign.wrap rvar, @key, body
+      else
+        body       = Push.wrap rvar, body
     if @guard
       body         = Block.wrap [new If @guard, body]
     if @pattern
@@ -1700,6 +1706,14 @@ Push =
   wrap: (name, exps) ->
     return exps if exps.isEmpty() or last(exps.expressions).jumps()
     exps.push new Call new Value(new Literal(name), [new Access new Literal 'push']), [exps.pop()]
+
+# The **ObjectAssign** creates the tree for `object[key] = value`,
+# which is helpful for recording the result objects from comprehensions.
+ObjectAssign =
+  wrap: (name, keyExps, valExps) ->
+    return new Block(keyExps.expressions.concat valExps.expressions) if valExps.isEmpty() or last(valExps.expressions).jumps() or keyExps.isEmpty() or last(keyExps.expressions).jumps()
+    assignResult = new Assign( new Value(new Literal(name), [new Index keyExps.pop()]), valExps.pop() )
+    new Block(keyExps.expressions.concat valExps.expressions, [assignResult])
 
 #### Closure
 
