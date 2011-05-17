@@ -251,7 +251,7 @@ test "#1005: invalid identifiers allowed on LHS of destructuring assignment", ->
   throws (-> CoffeeScript.compile "[#{disallowed.join ', '}] = x"), null, 'all disallowed'
   throws (-> CoffeeScript.compile "[#{disallowed.join '..., '}...] = x"), null, 'all disallowed as splats'
   t = tSplat = null
-  for v in disallowed when v isnt 'class' # `class` by itself is an expression
+  for v in disallowed when v isnt 'class' and v isnt 'meta' # `class` by itself is an expression, '[meta]' becomes '[]'
     throws (-> CoffeeScript.compile t), null, t = "[#{v}] = x"
     throws (-> CoffeeScript.compile tSplat), null, tSplat = "[#{v}...] = x"
   doesNotThrow ->

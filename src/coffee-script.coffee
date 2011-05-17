@@ -161,6 +161,7 @@ parser.lexer =
     if token
       [tag, @yytext, @yylloc] = token
       @yylineno = @yylloc.first_line
+      @yyfile = @yylloc.file
     else
       tag = ''
 

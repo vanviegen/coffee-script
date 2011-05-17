@@ -133,6 +133,7 @@ exports.isLiterate = (file) -> /\.(litcoffee|coffee\.md)$/.test file
 # Throws a SyntaxError with a source file location data attached to it in a
 # property called `location`.
 exports.throwSyntaxError = (message, location) ->
+  location.file ?= location.file
   location.last_line ?= location.first_line
   location.last_column ?= location.first_column
   error = new SyntaxError message

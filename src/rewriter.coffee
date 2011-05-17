@@ -11,6 +11,8 @@ generate = (tag, value) ->
     tok.generated = yes
     tok
 
+metaSandbox = metaParser = metaLexer = metaVm = null
+
 # The **Rewriter** class is used by the [Lexer](lexer.html), directly against
 # its internal array of tokens.
 class exports.Rewriter
@@ -29,6 +31,10 @@ class exports.Rewriter
     @closeOpenCalls()
     @closeOpenIndexes()
     @addImplicitIndentation()
+    @rewrite2 @tokens
+
+  rewrite2: (@tokens) ->
+    @rewriteMeta()
     @tagPostfixConditionals()
     @addImplicitBracesAndParens()
     @addLocationDataToGeneratedTokens()
@@ -392,6 +398,78 @@ class exports.Rewriter
       original = token
       @detectEnd i + 1, condition, action
       1
+  
+  rewriteMeta: ->
+    @scanTokens (token, i, tokens) ->
+      return 1 if token[0] != 'META' || tokens[i+1][0] != 'INDENT'
+      dent = 1
+      j = i+2
+      while true
+        dent++ if tokens[j][0] == 'INDENT'
+        dent-- if tokens[j][0] == 'OUTDENT'
+        break if !dent or !tokens[j+1]
+        j++
+      metaTokens = tokens[i+2...j]
+      metaTokens.push ['TERMINATOR', '\n', tokens[j][2], tokens[j][3]]
+      metaTokens = (new Rewriter).rewrite2 metaTokens
+      metaTokens.pop()
+
+      unless metaSandbox?
+        metaSandbox =
+          require: require
+          module : { exports: {} }
+        metaSandbox[g] = global[g] for g of global
+        metaSandbox.global = metaSandbox
+        metaSandbox.global.global = metaSandbox.global.root = metaSandbox.global.GLOBAL = metaSandbox
+        # Changes are we are getting the same instance as the main compilation
+        # is using. The jison API is really lacking here... 
+        # Make sure we're multi-entrant.
+        metaParser = (require './parser').parser
+        metaParser.yy = require './nodes'
+        metaLexer = new (require './lexer').Lexer()
+        metaVm = require 'vm'
+
+      prevLexer = metaParser.lexer
+      metaParser.lexer =
+        lex: ->
+          return '' if not @tokens[@pos]?
+          [tag, @yytext, @yylineno, @yyfile] = @tokens[@pos++]
+          tag
+        setInput: (@tokens) ->
+          @pos = 0
+        showPosition: ->
+          "symbol '#{@yytext}' at #{@yyfile or '?'}:#{1+@yylineno}"
+        upcomingInput: ->
+          ""
+
+      metaFilename = token[3]+':'+(1+token[2])+':meta'
+
+      js = (metaParser.parse metaTokens).compile {bare: on, filename: metaFilename, sandbox: metaSandbox}
+
+      metaParser.lexer = prevLexer
+
+      try
+        cs = metaVm.runInNewContext js, metaSandbox
+      catch err
+        process.stderr.write (err instanceof Error && err.stack || ("ERROR: " + err)) + "\nin meta script starting at #{token[2]?.file}:#{token[2]?.first_line}:#{token[2]?.first_column}\n"
+        process.exit 1
+
+      if cs? and typeof cs in ['string','number','boolean']
+          # Replace the META tokens with their output replacement tokens,
+          # setting their line number to the original token's line.
+          outputTokens = metaLexer.tokenize ''+cs, {file: metaFilename}
+          outputTokens.pop(); # the \n TERMINATOR
+      else
+          # The token stream cannot contain terminator without an expression,
+          # so if this meta is at the start of the program and returns nothing,
+          # remove the meta's trailing terminator.
+          outputTokens = []
+      j++ if !outputTokens.length and tokens[j+1]?[0]=='TERMINATOR'
+      
+      # process.stderr.write "before: "+JSON.stringify(tokens)+"\n\n"
+      tokens[i..j] = outputTokens
+      # process.stderr.write "after: "+JSON.stringify(tokens)+"\n\n"
+      return 0
 
   # Generate the indentation tokens, based on another token on the same line.
   indentation: (implicit = no) ->
@@ -456,7 +534,7 @@ IMPLICIT_END     = ['POST_IF', 'FOR', 'WHILE', 'UNTIL', 'WHEN', 'BY',
 
 # Single-line flavors of block expressions that have unclosed endings.
 # The grammar can't disambiguate them, so we insert the implicit indentation.
-SINGLE_LINERS    = ['ELSE', '->', '=>', 'TRY', 'FINALLY', 'THEN']
+SINGLE_LINERS    = ['ELSE', '->', '=>', 'TRY', 'FINALLY', 'THEN', 'META']
 SINGLE_CLOSERS   = ['TERMINATOR', 'CATCH', 'FINALLY', 'ELSE', 'OUTDENT', 'LEADING_WHEN']
 
 # Tokens that end a line.
