@@ -23,6 +23,10 @@ class exports.Rewriter
     @closeOpenCalls()
     @closeOpenIndexes()
     @addImplicitIndentation()
+    @rewrite2 @tokens
+
+  rewrite2: (@tokens) ->
+    @rewriteMeta()
     @tagPostfixConditionals()
     @addImplicitBraces()
     @addImplicitParentheses()
@@ -245,6 +249,55 @@ class exports.Rewriter
       original = token
       @detectEnd i + 1, condition, action
       1
+  
+  rewriteMeta: ->
+    @scanTokens (token, i, tokens) ->
+      return 1 if token[0] != 'META' || tokens[i+1][0] != 'INDENT'
+      dent = 1
+      j = i+2
+      while true
+        dent++ if tokens[j][0] == 'INDENT'
+        dent-- if tokens[j][0] == 'OUTDENT'
+        break if !dent or !tokens[j+1]
+        j++
+      metaTokens = tokens[i+2...j]
+      metaTokens[0...0] = [['IDENTIFIER','_',token[2]], ['=','=',token[2]]]
+      j++ if tokens[j+1] and tokens[j+1][0]=='TERMINATOR'
+      metaTokens.push ['TERMINATOR', '\n', 0]
+      metaTokens = (new Rewriter).rewrite2 metaTokens
+      metaTokens.pop()
+
+      unless @sandbox
+        @sandbox =
+          require: require
+          module : { exports: {} }
+        @sandbox[g] = global[g] for g of global
+        @sandbox.global = @sandbox
+        @sandbox.global.global = @sandbox.global.root = @sandbox.global.GLOBAL = @sandbox
+      unless @parser
+        @parser = (require './parser').parser 
+        @parser.yy = require './nodes'
+        @parser.lexer =
+          lex: ->
+            [tag, @yytext, @yylineno] = @tokens[@pos++] or ['']
+            tag
+          setInput: (@tokens) ->
+            @pos = 0
+          upcomingInput: ->
+            ""
+        @vm = require 'vm'
+        @lexer = new (require './lexer').Lexer()
+
+      js = (@parser.parse metaTokens).compile {bare: on, filename: 'meta', @sandbox}
+      cs = @vm.runInNewContext js, @sandbox
+      if cs? and typeof cs in ['string','number']
+          # Replace the META tokens with their output replacement tokens,
+          # setting their line number to the original token's line.
+          outputTokens = ([t[0],t[1],token[2]] for t in (@lexer.tokenize ''+cs))
+      else
+          outputTokens = []
+      tokens[i..j] = outputTokens
+      return 0
 
   # Generate the indentation tokens, based on another token on the same line.
   indentation: (token, implicit = no) ->
@@ -311,7 +364,7 @@ IMPLICIT_END     = ['POST_IF', 'FOR', 'WHILE', 'UNTIL', 'WHEN', 'BY', 'LOOP', 'T
 
 # Single-line flavors of block expressions that have unclosed endings.
 # The grammar can't disambiguate them, so we insert the implicit indentation.
-SINGLE_LINERS    = ['ELSE', '->', '=>', 'TRY', 'FINALLY', 'THEN']
+SINGLE_LINERS    = ['ELSE', '->', '=>', 'TRY', 'FINALLY', 'THEN', 'META']
 SINGLE_CLOSERS   = ['TERMINATOR', 'CATCH', 'FINALLY', 'ELSE', 'OUTDENT', 'LEADING_WHEN']
 
 # Tokens that end a line.
