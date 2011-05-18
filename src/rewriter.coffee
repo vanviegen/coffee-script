@@ -134,8 +134,7 @@ class exports.Rewriter
   addImplicitParentheses: ->
     noCall = no
     action = (token, i) ->
-      idx = if token[0] is 'OUTDENT' then i + 1 else i
-      @tokens.splice idx, 0, ['CALL_END', ')', token[2]]
+      @tokens.splice i, 0, ['CALL_END', ')', token[2]]
     @scanTokens (token, i, tokens) ->
       tag     = token[0]
       noCall  = yes if tag in ['CLASS', 'IF']
@@ -211,18 +210,39 @@ class exports.Rewriter
   # Ensure that all listed pairs of tokens are correctly balanced throughout
   # the course of the token stream.
   ensureBalance: (pairs) ->
-    levels   = {}
-    openLine = {}
-    for token in @tokens
-      [tag] = token
-      for [open, close] in pairs
-        levels[open] |= 0
-        if tag is open
-          openLine[open] = token[2] if levels[open]++ is 0
-        else if tag is close and --levels[open] < 0
-          throw Error "too many #{token[1]} on line #{token[2] + 1}"
-    for open, level of levels when level > 0
-      throw Error "unclosed #{ open } on line #{openLine[open] + 1}"
+    open  = {}
+    close = {}
+    for [o, c] in pairs
+      open[o]  = c
+      close[c] = o
+
+    stack = []
+    for token,n in @tokens
+      [tag,info,line] = token
+      if open[tag]
+        stack.push [open[tag],line]
+      else if close[tag]
+        expected = stack.pop()
+        throw Error "unexpected #{tag} on line #{line+1}" if not expected
+        
+        continue if expected[0] is tag
+        if expected[0] is 'OUTDENT'
+          # We're lenient about OUTDENTs coming too late, and just bring
+          # them forward.
+          i = n
+          for i in [n...@tokens.length]
+            if @tokens[i][0] == 'OUTDENT'
+              @tokens[n] = @tokens[i]
+              @tokens[j] = @tokens[j-1] for j in [i...n+1] by -1
+              @tokens[n+1] = token
+              break
+          continue if expected[0] is @tokens[n][0]
+        throw Error "unexpected #{tag} on line #{line+1} (#{expected[0]} expected for #{close[expected[0]]} on line #{expected[1]+1})"
+
+    while stack.length
+      missing = stack.pop()
+      throw Error "unclosed #{close[stack[0][0]]} on line #{stack[0][1]}" if missing[0] isnt 'OUTDENT'
+      # Ignore missing OUTDENTs at the end
     this
 
   # We'd like to support syntax like this:
