@@ -23,7 +23,7 @@ it belongs to.
       constructor: (@parent, @expressions, @method) ->
         @variables = [{name: 'arguments', type: 'arguments'}]
         @positions = {}
-        Scope.root = this unless @parent
+        Scope.root = this if not @parent or @parent.noRoot
 
 Adds a new variable or overrides an existing one.
 

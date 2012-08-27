@@ -304,9 +304,9 @@ exports.Block = class Block extends Base
   # clean up obvious double-parentheses.
   compileRoot: (o) ->
     o.indent  = if o.bare then '' else TAB
+    o.scope   = new Scope null, this, null
     o.level   = LEVEL_TOP
     @spaced   = yes
-    o.scope   = new Scope null, this, null
     # Mark given local variables in the root scope as parameters so they don't
     # end up being declared on this block.
     o.scope.parameter name for name in o.locals or []
@@ -320,10 +320,12 @@ exports.Block = class Block extends Base
       if preludeExps.length
         prelude = @compileNode merge(o, indent: '')
         prelude.push @makeCode "\n"
-      @expressions = rest
-    fragments = @compileWithDeclarations o
-    return fragments if o.bare
-    [].concat prelude, @makeCode("(function() {\n"), fragments, @makeCode("\n}).call(this);\n")
+      rest = new Code [], Block.wrap [rest]
+      rest.noRoot = true
+      rest = new Value rest
+      @expressions = [new Call rest]
+
+    @compileWithDeclarations o
 
   # Compile the expressions body for the contents of a function, with
   # declarations of all inner variables pushed up to the top.
@@ -1125,12 +1127,14 @@ exports.Assign = class Assign extends Base
   unfoldSoak: (o) ->
     unfoldSoak o, this, 'variable'
 
+  upScopes: 0
+
   # Compile an assignment, delegating to `compilePatternMatch` or
   # `compileSplice` if appropriate. Keep track of the name of the base object
   # we've been assigned to, for correct internal references. If the variable
   # has not been seen yet within the current scope, declare it.
   compileNode: (o) ->
-    if isValue = @variable instanceof Value
+    if @variable instanceof Value
       return @compilePatternMatch o if @variable.isArray() or @variable.isObject()
       return @compileSplice       o if @variable.isSplice()
       return @compileConditional  o if @context in ['||=', '&&=', '?=']
@@ -1141,10 +1145,19 @@ exports.Assign = class Assign extends Base
       unless varBase.isAssignable()
         @variable.error "\"#{@variable.compile o}\" cannot be assigned"
       unless varBase.hasProperties?()
+        scope = o.scope
+        for [0...@upScopes]
+          scope = scope.parent
+          unless scope
+            throw SyntaxError "top-level identifier \"#{ @variable.compile o }\" cannot be exported further"
         if @param
-          o.scope.add name, 'var'
+          scope.add name, 'var'
         else
-          o.scope.find name
+          scope.find name
+
+    if @upScopes and not scope
+      throw SyntaxError "non-identifier \"#{ @variable.compile o }\" cannot be exported"
+
     if @value instanceof Code and match = METHOD_DEF.exec name
       @value.klass = match[1] if match[1]
       @value.name  = match[2] ? match[3] ? match[4] ? match[5]
