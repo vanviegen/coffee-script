@@ -824,7 +824,7 @@ COMPOUND_ASSIGN = [
 UNARY   = ['!', '~', 'NEW', 'TYPEOF', 'DELETE', 'DO']
 
 # Logical tokens.
-LOGIC   = ['&&', '||', '&', '|', '^']
+LOGIC   = ['&&', '||', '&', '|']
 
 # Bit-shifting tokens.
 SHIFT   = ['<<', '>>', '>>>']
