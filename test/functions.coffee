@@ -51,8 +51,12 @@ ok del() is 5
 obj =
   bound: ->
     (=> this)()
+  bound2: ->
+    (!=> return this)()
   unbound: ->
     (-> this)()
+  unbound2: ->
+    (!-> return this)()
   nested: ->
     (=>
       (=>
@@ -60,7 +64,9 @@ obj =
       )()
     )()
 eq obj, obj.bound()
+eq obj, obj.bound2()
 ok obj isnt obj.unbound()
+ok obj isnt obj.unbound2()
 eq obj, obj.nested()
 
 
@@ -206,3 +212,12 @@ test "#2258: allow whitespace-style parameter lists in function definitions", ->
     c
   ) -> b
   eq func(1, 2, 3), 2
+
+test "statements", ->
+  func = !-> 1
+  eq func(), undefined
+
+  func = (a) !=> return a if a; 17
+  eq func(2), 2
+  eq func(), undefined
+

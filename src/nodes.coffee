@@ -1161,10 +1161,11 @@ exports.Assign = class Assign extends Base
 # has no *children* -- they're within the inner scope.
 exports.Code = class Code extends Base
   constructor: (params, body, tag) ->
-    @params  = params or []
-    @body    = body or new Block
-    @bound   = tag is 'boundfunc'
-    @context = '_this' if @bound
+    @params   = params or []
+    @body     = body or new Block
+    @noReturn = tag=='!->' or tag=='!=>'
+    @bound    = tag=='=>' or tag=='!=>'
+    @context  = '_this' if @bound
 
   children: ['params', 'body']
 
