@@ -5,6 +5,8 @@
 # shorthand into the unambiguous long form, add implicit indentation and
 # parentheses, and generally clean things up.
 
+metaSandbox = metaParser = metaLexer = metaVm = null
+
 # The **Rewriter** class is used by the [Lexer](lexer.html), directly against
 # its internal array of tokens.
 class exports.Rewriter
@@ -261,42 +263,61 @@ class exports.Rewriter
         break if !dent or !tokens[j+1]
         j++
       metaTokens = tokens[i+2...j]
-      metaTokens[0...0] = [['IDENTIFIER','_',token[2]], ['=','=',token[2]]]
-      j++ if tokens[j+1] and tokens[j+1][0]=='TERMINATOR'
-      metaTokens.push ['TERMINATOR', '\n', 0]
+      metaTokens.push ['TERMINATOR', '\n', tokens[j][2], tokens[j][3]]
       metaTokens = (new Rewriter).rewrite2 metaTokens
       metaTokens.pop()
 
-      unless @sandbox
-        @sandbox =
+      unless metaSandbox?
+        metaSandbox =
           require: require
           module : { exports: {} }
-        @sandbox[g] = global[g] for g of global
-        @sandbox.global = @sandbox
-        @sandbox.global.global = @sandbox.global.root = @sandbox.global.GLOBAL = @sandbox
-      unless @parser
-        @parser = (require './parser').parser 
-        @parser.yy = require './nodes'
-        @parser.lexer =
-          lex: ->
-            [tag, @yytext, @yylineno] = @tokens[@pos++] or ['']
-            tag
-          setInput: (@tokens) ->
-            @pos = 0
-          upcomingInput: ->
-            ""
-        @vm = require 'vm'
-        @lexer = new (require './lexer').Lexer()
+        metaSandbox[g] = global[g] for g of global
+        metaSandbox.global = metaSandbox
+        metaSandbox.global.global = metaSandbox.global.root = metaSandbox.global.GLOBAL = metaSandbox
+        # Changes are we are getting the same instance as the main compilation
+        # is using. The jison API is really lacking here... 
+        # Make sure we're multi-entrant.
+        metaParser = (require './parser').parser 
+        metaParser.yy = require './nodes'
+        metaLexer = new (require './lexer').Lexer()
+        metaVm = require 'vm'
 
-      js = (@parser.parse metaTokens).compile {bare: on, filename: 'meta', @sandbox}
-      cs = @vm.runInNewContext js, @sandbox
-      if cs? and typeof cs in ['string','number']
+      prevLexer = metaParser.lexer
+      metaParser.lexer =
+        lex: ->
+          return '' if not @tokens[@pos]?
+          [tag, @yytext, @yylineno, @yyfile] = @tokens[@pos++]
+          tag
+        setInput: (@tokens) ->
+          @pos = 0
+        showPosition: ->
+          "symbol '#{@yytext}' at #{@yyfile or '?'}:#{1+@yylineno}"
+        upcomingInput: ->
+          ""
+
+      metaFilename = token[3]+':'+(1+token[2])+':meta'
+
+      js = (metaParser.parse metaTokens).compile {bare: on, filename: metaFilename, sandbox: metaSandbox}
+
+      metaParser.lexer = prevLexer
+
+      try
+        cs = metaVm.runInNewContext js, metaSandbox
+      catch err
+        process.stderr.write (err instanceof Error && err.stack || ("ERROR: " + err)) + "\nin meta script starting at #{token[3]}:#{1+token[2]}\n"
+        process.exit 1
+
+      if cs? and typeof cs in ['string','number','boolean']
           # Replace the META tokens with their output replacement tokens,
           # setting their line number to the original token's line.
-          outputTokens = ([t[0],t[1],token[2]] for t in (@lexer.tokenize ''+cs))
+          outputTokens = metaLexer.tokenize ''+cs, {file: metaFilename}
+          outputTokens.pop(); # the \n TERMINATOR
       else
           outputTokens = []
+      
+      #process.stderr.write "before: "+JSON.stringify(tokens)+"\n\n"
       tokens[i..j] = outputTokens
+      #process.stderr.write "after: "+JSON.stringify(tokens)+"\n\n"
       return 0
 
   # Generate the indentation tokens, based on another token on the same line.

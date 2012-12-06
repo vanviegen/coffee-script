@@ -37,6 +37,7 @@ exports.Lexer = class Lexer
 
     @code    = code           # The remainder of the source code.
     @line    = opts.line or 0 # The current line.
+    @file    = opts.file      # The current source file.
     @indent  = 0              # The current indentation level.
     @indebt  = 0              # The over-indentation at the current level.
     @outdebt = 0              # The under-outdentation at the current level.
@@ -468,7 +469,7 @@ exports.Lexer = class Lexer
       tokens.push ['NEOSTRING', str[pi...i]] if pi < i
       inner = expr[1...-1]
       if inner.length
-        nested = new Lexer().tokenize inner, line: @line, rewrite: off
+        nested = new Lexer().tokenize inner, line: @line, rewrite: off, file: @file
         nested.pop()
         nested.shift() if nested[0]?[0] is 'TERMINATOR'
         if len = nested.length
@@ -512,7 +513,7 @@ exports.Lexer = class Lexer
 
   # Add a token to the results, taking note of the line number.
   token: (tag, value) ->
-    @tokens.push [tag, value, @line]
+    @tokens.push [tag, value, @line, @file]
 
   # Peek at a tag in the current token stream.
   tag: (index, tag) ->
@@ -542,7 +543,7 @@ exports.Lexer = class Lexer
 
   # Throws a syntax error on the current `@line`.
   error: (message) ->
-    throw SyntaxError "#{message} on line #{ @line + 1}"
+    throw SyntaxError "#{message} at #{@file or '?'}:#{@line + 1}"
 
 # Constants
 # ---------

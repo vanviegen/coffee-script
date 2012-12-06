@@ -143,4 +143,4 @@ test "#1299: Disallow token misnesting", ->
     '''
     ok no
   catch e
-    eq 'unmatched ] on line 2', e.message
+    eq 0, e.message.indexOf 'unmatched ]'

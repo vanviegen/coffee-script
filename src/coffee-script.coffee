@@ -120,10 +120,12 @@ lexer = new Lexer
 # directly as a "Jison lexer".
 parser.lexer =
   lex: ->
-    [tag, @yytext, @yylineno] = @tokens[@pos++] or ['']
+    [tag, @yytext, @yylineno, @yyfile] = @tokens[@pos++] or ['']
     tag
   setInput: (@tokens) ->
     @pos = 0
+  showPosition: ->
+    "symbol '#{@yytext}' at #{@yyfile or '?'}:#{1+@yylineno}"
   upcomingInput: ->
     ""
 
