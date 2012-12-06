@@ -260,6 +260,7 @@ exports.Block = class Block extends Base
       prelude = "#{@compileNode merge(o, indent: '')}\n" if preludeExps.length
 
       func = new Code [], Block.wrap [rest]
+      func.noReturn = true
       func = new Value func
       @expressions = [new Call func]
 
