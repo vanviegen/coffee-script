@@ -1,0 +1,63 @@
+#!/usr/bin/env node
+
+var fs = require('fs');
+var path = require('path');
+var lib = path.join(path.dirname(fs.realpathSync(__filename)), '../lib/coffee-script/');
+var CoffeeScript = require(lib + 'coffee-script');
+var helpers = require(lib + 'helpers');
+var Lexer = require(lib + 'lexer').Lexer;
+var parser = require(lib + 'parser').parser;
+parser.yy = require(lib + 'nodes');
+
+var lexer = new Lexer;
+
+parser.lexer = {
+	tokens: [],
+	lex: function() {
+		while (this.pos >= this.tokens.length) {
+			this.file = this.files[this.fileNum++];
+			if (this.file == null) return '';
+			if (this.file == '-') {
+				this.code = fs.readFileSync('/dev/stdin').toString();
+				this.file = "<stdin>";
+			}
+			else {
+				this.code = fs.readFileSync(this.file).toString();
+			}
+
+			var isLiterate = !!this.code.match(/^[^\n]*\n={3,}/);
+				// second line looks like =====? must be literate coffeescript
+
+			this.tokens = lexer.tokenize(this.code, {literate: isLiterate});
+			this.pos = 0;
+		}
+		var token = this.tokens[this.pos++];
+		this.yytext = token[1];
+		this.yylloc = token[2];
+		this.yylineno = this.yylloc.first_line;
+		return token[0];
+	},
+	setInput: function(files) {
+		this.files = files;
+		this.fileNum = 0;
+		this.pos = 0;
+	},
+	showPosition: function() {
+		return "symbol '"+this.yytext+"' at "+this.yyfile + ':' + (1+this.yylineno);
+	},
+	upcomingInput: function() {
+		return (this.tokens[this.pos] || [''])[0];
+	}
+};
+
+
+try {
+	ast = parser.parse(process.argv.slice(2));
+	process.stdout.write(ast.compile().trim() + "\n");
+}
+catch (err) {
+	process.stderr.write(helpers.prettyErrorMessage(err,
+			(parser.lexer||{}).file, (parser.lexer||{}).code||'', true)); 
+	process.exit(1);
+}
+
