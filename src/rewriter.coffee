@@ -313,6 +313,10 @@ class exports.Rewriter
           outputTokens = metaLexer.tokenize ''+cs, {file: metaFilename}
           outputTokens.pop(); # the \n TERMINATOR
       else
+          # The token stream cannot start with a terminator, so if this meta
+          # is at the start of the program and returns nothing, remove the
+          # meta's trailing terminator.
+          j++ if i==0 and tokens[j+1]?[0]=='TERMINATOR'
           outputTokens = []
       
       #process.stderr.write "before: "+JSON.stringify(tokens)+"\n\n"
