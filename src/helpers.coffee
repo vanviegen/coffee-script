@@ -147,7 +147,7 @@ exports.prettyErrorMessage = (error, fileName, code, useColors) ->
   return error.stack or "#{error}" unless error.location
 
   {first_line, first_column, last_line, last_column} = error.location
-  codeLine = code.split('\n')[first_line]
+  codeLine = code.split('\n')[first_line] || ''
   start    = first_column
   # Show only the first line on multi-line errors.
   end      = if first_line is last_line then last_column + 1 else codeLine.length
