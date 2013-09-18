@@ -316,8 +316,8 @@ exports.Block = class Block extends Base
         break unless exp.unwrap() instanceof Comment
         exp
       rest = @expressions[preludeExps.length...]
-      @expressions = preludeExps
       if preludeExps.length
+        @expressions = preludeExps
         prelude = @compileNode merge(o, indent: '')
         prelude.push @makeCode "\n"
       rest = new Code [], Block.wrap [rest]
@@ -325,7 +325,7 @@ exports.Block = class Block extends Base
       rest = new Value rest
       @expressions = [new Call rest]
 
-    @compileWithDeclarations o
+    [].concat prelude, @compileWithDeclarations(o)
 
   # Compile the expressions body for the contents of a function, with
   # declarations of all inner variables pushed up to the top.
@@ -1284,10 +1284,11 @@ exports.Assign = class Assign extends Base
 # has no *children* -- they're within the inner scope.
 exports.Code = class Code extends Base
   constructor: (params, body, tag) ->
-    @params  = params or []
-    @body    = body or new Block
-    @bound   = tag is 'boundfunc'
-    @context = '_this' if @bound
+    @params   = params or []
+    @body     = body or new Block
+    @noReturn = tag=='!->' or tag=='!=>'
+    @bound    = tag=='=>' or tag=='!=>'
+    @context  = '_this' if @bound
 
   children: ['params', 'body']
 
