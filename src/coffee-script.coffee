@@ -43,7 +43,7 @@ exports.compile = compile = (code, options = {}) ->
     sourceMap = new SourceMap fragments, options
     answer = {js, sourceMap}
     answer.sourceMap = sourceMap
-    answer.v3SourceMap = sourceMap.generate(options, code)
+    answer.v3SourceMap = sourceMap.generate options
     answer
   else
     js
