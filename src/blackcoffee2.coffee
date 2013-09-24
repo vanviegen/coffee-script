@@ -32,7 +32,7 @@ for file in args
 	asts.push Coffee.nodes cs
 
 ast = new Nodes.Block(asts)
-ast = Macro.expand(ast, exports.nodes)
+ast = Macro.expand(ast, Coffee.nodes)
 fragments = ast.compileToFragments()
 js = (fragment.code for fragment in fragments).join('')
 
