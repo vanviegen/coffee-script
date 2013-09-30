@@ -9,6 +9,7 @@ SourceMap = require "#{lib}/sourcemap"
 Macro = require "#{lib}/macro"
 
 args = process.argv.slice 2
+flags = root.flags = {}
 
 i = 0
 while i<args.length
@@ -22,14 +23,18 @@ while i<args.length
 	else if arg=='-m'
 		map = args[i]
 		args.splice i, 1
+	else if arg=='-f'
+		flag = args[i].split '='
+		flags[flag[0]] = flag[1] ? true
+		args.splice i, 1
 	else
-		printWarn "invalid option '#{arg}'"
+		process.stderr.write "invalid option '#{arg}'\n"
 		process.exit 1
 
 asts = []
 for file in args
 	cs = Fs.readFileSync(file).toString()
-	asts.push Coffee.nodes cs
+	asts.push Coffee.nodes cs, {filename: file}
 
 ast = new Nodes.Block(asts)
 ast = Macro.expand(ast, Coffee.nodes)
