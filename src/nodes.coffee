@@ -141,7 +141,7 @@ exports.Base = class Base
   # This method is not used by CoffeeScript itself, but can be used by macros.
   subst: (replacements) ->
     exports.walk cloneNode(@), (n) ->
-      n.base = tmp if tmp = replacements[n.base?.value]
+      n.base = cloneNode(tmp) if tmp = replacements[n.base?.value]
       return
 
   # Passes each child to a function, breaking when the function returns `false`.

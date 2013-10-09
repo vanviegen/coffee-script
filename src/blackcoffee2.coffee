@@ -14,7 +14,7 @@ flags = root.flags = {}
 i = 0
 while i<args.length
 	arg = args[i++]
-	continue if arg[0]!='-'
+	continue if arg[0]!='-' # an input file
 	args.splice --i, 1
 	break if arg=='--'
 	if arg=='-o' # output file
