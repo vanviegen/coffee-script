@@ -2227,18 +2227,9 @@ cloneNode = (src) ->
 # that is not possible). When a node is returned, it is used to replace the
 # original node, and `visit` is called again for the replacing node.
 exports.walk = walk = (node, visit) ->
-  for name in node.children||[]
-    continue unless child = node[name]
+  for name in node.children||[] when child = node[name]
     if child instanceof Array
-      i = 0
-      while item = child[i++]
-        res = visit walk(item, visit)
-        if res # replace (and walk it again)
-          res.updateLocationDataIfMissing child[--i].locationData
-          child[i] = res
-        else if res==false # delete
-          child.splice --i, 1
-        # else keep
+      walkArray child, visit
     else
       while (res = visit walk(child,visit)) # replace (and walk it again)
         res.updateLocationDataIfMissing child.locationData
@@ -2247,4 +2238,19 @@ exports.walk = walk = (node, visit) ->
         node[name] = new exports.Undefined()
         # else keep
   node
+
+walkArray = (array, visit) ->
+  i = 0
+  while item = array[i++]
+    if item instanceof Array
+      walkArray item, visit
+    else
+      res = visit walk(item, visit)
+      if res # replace (and walk it again)
+        res.updateLocationDataIfMissing array[--i].locationData
+        array[i] = res
+      else if res==false # delete
+        array.splice --i, 1
+      # else keep
+  return
 
